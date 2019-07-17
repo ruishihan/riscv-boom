@@ -104,6 +104,28 @@ class RenameStage(
 {
   val io = IO(new RenameStageIO(plWidth, numIntWbPorts, numFpWbPorts))
 
+  def bypassInterCycle(uops: Vec[MicroOp], remaps: Vec[Valid[MicroOp]]): Vec[MicroOp] = {
+    val bypassed_uops = Wire(Vec(plWidth, new MicroOp))
+
+    for ((uop, bp_uop) <- uops zip bypassed_uops) {
+      val bp_hits_rs1 = remaps.map(r => r.valid && r.bits.ldst === uops.lrs1 && r.bits.ldst_rtype === uops.lrs1_rtype)
+      val bp_hits_rs2 = remaps.map(r => r.valid && r.bits.ldst === uops.lrs2 && r.bits.ldst_rtype === uops.lrs2_rtype)
+      val bp_hits_rs3 = remaps.map(r => r.valid && r.bits.ldst === uops.lsr3 && r.bits.ldst_rtype === uops.lrs3_rtype)
+
+      val bp_sel_rs1  = PriorityEncoderOH(bp_hits_rs1.reverse).reverse
+      val bp_sel_rs2  = PriorityEncoderOH(bp_hits_rs2.reverse).reverse
+      val bp_sel_rs3  = PriorityEncoderOH(bp_hits_rs3.reverse).reverse
+
+      val bp_pdsts    = remaps.map(_.bits.pdst)
+
+      when (bp_hits_rs1.reduce(_||_)) bp_uops.prs1 := Mux1H(bp_sel_rs1, bp_pdsts)
+      when (bp_hits_rs2.reduce(_||_)) bp_uops.prs2 := Mux1H(bp_sel_rs2, bp_pdsts)
+      when (bp_hits_rs3.reduce(_||_)) bp_uops.prs3 := Mux1H(bp_sel_rs3, bp_pdsts)
+    }
+
+    bypassed_uops
+  }
+
   // integer registers
   val imaptable = Module(new RenameMapTable(
     plWidth,
