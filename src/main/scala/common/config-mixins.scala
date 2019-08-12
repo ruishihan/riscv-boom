@@ -327,7 +327,7 @@ class WithMegaBooms extends Config((site, here, up) => {
       ftq = FtqParameters(nEntries=32),
       btb = BoomBTBParameters(btbsa=true, densebtb=false, nSets=512, nWays=4, nRAS=16, tagSz=20),
       bpdBaseOnly = None,
-      gshare = Some(GShareParameters(historyLength=23, numSets=4096)),
+      gshare = Some(GShareParameters(historyLength=27, numSets=16384)),
       tage = None,
       bpdRandom = None),
     dcache = Some(DCacheParams(rowBits = site(SystemBusKey).beatBytes*8,
