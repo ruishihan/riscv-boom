@@ -866,9 +866,7 @@ class LoadStoreUnit(pl_width: Int)(implicit p: Parameters,
       when ((stq_allocated(i) &&
                st_dep_mask(i) &&
                (stq_uop(i).is_fence || stq_uop(i).is_amo)) ||
-            (dword_addr_matches(i) &&
-               (mem_ld_uop.mem_size =/= stq_uop(i).mem_size) &&
-               ((read_mask & write_mask) =/= 0.U)))
+            (dword_addr_matches(i) && !forwarding_matches(i)))
       {
          force_ld_to_sleep := true.B
       }
