@@ -836,6 +836,7 @@ class LoadStoreUnit(pl_width: Int)(implicit p: Parameters,
       // check the lower-order bits for overlap/conflicts and matches
       ldst_addr_conflicts(i) := false.B
       val write_mask = GenByteMask(s_addr, stq_uop(i).mem_size)
+      dontTouch(write_mask)
 
       // if overlap on bytes and dword matches, the address conflicts!
       when (((read_mask & write_mask) =/= 0.U) && dword_addr_matches(i))
@@ -853,7 +854,7 @@ class LoadStoreUnit(pl_width: Int)(implicit p: Parameters,
       // exact match on masks? we can forward the data, if data is also present!
       // TODO PERF we can be fancier perhaps, like (r_mask & w_mask === r_mask)
       forwarding_matches(i) := false.B
-      when ((read_mask === write_mask) &&
+      when (!(read_mask & ~write_mask).orR &&
             !(stq_uop(i).is_fence) &&
             dword_addr_matches(i))
       {
