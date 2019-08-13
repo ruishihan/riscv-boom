@@ -324,12 +324,14 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
   val f3_bpd_br_idx = PriorityEncoder(f3_bpd_predictions)
   val f3_bpd_target = br_targs(f3_bpd_br_idx)
   // check for jumps -- if we decide to override a taken BTB and choose "nextline" we don't want to miss the JAL.
-  val f3_has_jal = is_jal.reduce(_|_)
+  val f3_has_jal = is_jal.reduce(_||_)
   val f3_jal_idx = PriorityEncoder(is_jal.asUInt)
   val f3_jal_target = jal_targs(f3_jal_idx)
 
-  val f3_jr_idx = PriorityEncoder(is_jr)
-  val f3_jr_valid = is_jr.reduce(_||_)
+  val f3_ret_idx = PriorityEncoder(is_jr)
+  val f3_has_ret = is_jr.reduce(_||_)
+
+  val f3_ret_overrides_jal = f3_has_ret && (!f3_has_jal || f3_ret_idx < f3_jal_idx)
 
   val f3_bpd_btb_update_valid = WireInit(false.B) // does the BPD's choice cause a BTB update?
   val f3_bpd_may_redirect_taken = WireInit(false.B) // request towards a taken branch target
@@ -338,15 +340,19 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
   val f3_bpd_redirect_cfiidx =
     Mux(f3_bpd_may_redirect_taken,
       f3_bpd_br_idx,
+    Mux(f3_ret_overrides_jal,
+      f3_ret_idx,
     Mux(f3_has_jal,
       f3_jal_idx,
-      (fetchWidth-1).U))
+      (fetchWidth-1).U)))
   val f3_bpd_redirect_target =
     Mux(f3_bpd_may_redirect_taken,
       f3_bpd_target,
+    Mux(f3_ret_overrides_ret,
+      io.ras_pc,
     Mux(f3_has_jal,
       f3_jal_target,
-      nextFetchStart(f3_aligned_pc)))
+      nextFetchStart(f3_aligned_pc))))
 
   // mask out instructions after predicted branch
   val f3_kill_mask = Wire(UInt(fetchWidth.W))
@@ -429,8 +435,8 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
 
   val f3_btb_update_bits = Wire(new BoomBTBUpdate)
   val f3_btb_update_valid = Mux(f3_bpd_overrides_bcheck,
-                              f3_bpd_btb_update_valid      && (!f3_jr_valid || f3_bpd_br_idx < f3_jr_idx),
-                              bchecker.io.btb_update.valid && (!f3_jr_valid || f3_jal_idx    < f3_jr_idx))
+                              f3_bpd_btb_update_valid      && (!f3_has_ret || f3_bpd_br_idx < f3_ret_idx),
+                              bchecker.io.btb_update.valid && (!f3_has_ret || f3_jal_idx    < f3_ret_idx))
   io.f3_btb_update.valid := RegNext(f3_btb_update_valid) && r_f4_req.valid
   io.f3_btb_update.bits := RegNext(f3_btb_update_bits)
   f3_btb_update_bits := bchecker.io.btb_update.bits
@@ -443,7 +449,11 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
     f3_btb_update_bits.is_edge  := f3_fetch_bundle.edge_inst && (f3_bpd_br_idx === 0.U)
   }
 
-  io.f3_ras_update := bchecker.io.ras_update
+  val f3_pop_ras = f3_bpd_overrides_bcheck && f3_bpd_may_redirect_next && f3_ret_overrides_jal
+  io.f3_ras_update.valid := bchecker.io.ras_update.valid || f3_pop_ras
+  io.f3_ras_update.bits.is_call := !f3_pop_ras
+  io.f3_ras_update.bits.is_ret := f3_pop_ras
+  io.f3_ras_update.return_addr := bchecker.io.ras_update.bits.return_addr
 
   f3_kill_mask := KillMask(
     f3_req.valid,
