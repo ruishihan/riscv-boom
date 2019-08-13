@@ -410,8 +410,8 @@ class LoadStoreUnit(pl_width: Int)(implicit p: Parameters,
    when (dc_avail)
    {
       // TODO allow dyanmic priority here
-      will_fire_store_commit := can_fire_store_commit
-      will_fire_load_wakeup  := !can_fire_store_commit && can_fire_load_wakeup && lcam_avail
+      will_fire_store_commit := !will_fire_load_wakeup && can_fire_store_commit
+      will_fire_load_wakeup  := can_fire_load_wakeup && lcam_avail
    }
 
    //--------------------------------------------
