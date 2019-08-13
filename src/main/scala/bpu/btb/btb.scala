@@ -258,6 +258,9 @@ abstract class BoomBTB(implicit p: Parameters) extends BoomModule with HasBoomBT
     // HACK: prevent BTB updating/predicting during program load.
     // Easier to diff against spike which doesn't run debug mode.
     val status_debug = Input(Bool())
+
+    // HACK: Let F3 peek into the RAS.
+    val ras_pc = Output(UInt(vaddrBits.W))
   })
 }
 

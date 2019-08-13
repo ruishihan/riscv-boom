@@ -94,6 +94,9 @@ class BranchPredictionStage(val bankBytes: Int)(implicit p: Parameters) extends 
     val redirect      = Input(Bool())
     val status_prv    = Input(UInt(freechips.rocketchip.rocket.PRV.SZ.W))
     val status_debug  = Input(Bool())
+
+    // HACK: Let F3 peek into the RAS.
+    val ras_pc        = Output(UInt(vaddrBits.W))
   })
 
   //************************************************
@@ -149,6 +152,8 @@ class BranchPredictionStage(val bankBytes: Int)(implicit p: Parameters) extends 
      btb.io.ras_update.bits.return_addr := io.f2_aligned_pc + (jmp_idx << (log2Ceil(coreInstBytes)).U) +
                                              Mux(btb.io.resp.bits.is_rvc || btb.io.resp.bits.is_edge, 2.U, 4.U)
   }
+
+  io.ras_pc := btb.io.ras_pc
 
   //************************************************
   // Update the BTB/BIM

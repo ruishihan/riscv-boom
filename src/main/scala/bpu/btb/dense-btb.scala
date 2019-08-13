@@ -348,6 +348,10 @@ class DenseBTB(val bankBytes: Int)(implicit p: Parameters) extends BoomBTB
         ras.pop()
       }
     }
+
+    io.ras_pc := ras.peek
+  } else {
+    io.ras_pc := DontCare
   }
 
   //************************************************

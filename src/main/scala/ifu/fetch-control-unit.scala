@@ -115,6 +115,9 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
     val sfence_addr       = Input(UInt((vaddrBits+1).W))
 
     val fetchpacket       = new DecoupledIO(new FetchBufferResp)
+
+    // HACK: Let F3 peek into the RAS.
+    val ras_pc            = Input(UInt(vaddrBits.W))
   })
 
   val bchecker = Module (new BranchChecker)

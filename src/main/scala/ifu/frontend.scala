@@ -276,6 +276,8 @@ class BoomFrontendModule(outer: BoomFrontend) extends LazyModuleImp(outer)
   fetch_controller.io.flush_info        := io.cpu.flush_info
   fetch_controller.io.commit            := io.cpu.commit
 
+  fetch_controller.io.ras_pc            := bpdpipeline.io.ras_pc
+
   io.cpu.get_pc <> fetch_controller.io.get_pc
 
   io.cpu.com_fetch_pc := fetch_controller.io.com_fetch_pc
