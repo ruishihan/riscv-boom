@@ -348,7 +348,7 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
   val f3_bpd_redirect_target =
     Mux(f3_bpd_may_redirect_taken,
       f3_bpd_target,
-    Mux(f3_ret_overrides_ret,
+    Mux(f3_ret_overrides_jal,
       io.ras_pc,
     Mux(f3_has_jal,
       f3_jal_target,
@@ -453,7 +453,7 @@ class FetchControlUnit(implicit p: Parameters) extends BoomModule
   io.f3_ras_update.valid := bchecker.io.ras_update.valid || f3_pop_ras
   io.f3_ras_update.bits.is_call := !f3_pop_ras
   io.f3_ras_update.bits.is_ret := f3_pop_ras
-  io.f3_ras_update.return_addr := bchecker.io.ras_update.bits.return_addr
+  io.f3_ras_update.bits.return_addr := bchecker.io.ras_update.bits.return_addr
 
   f3_kill_mask := KillMask(
     f3_req.valid,

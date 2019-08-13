@@ -146,7 +146,7 @@ class BranchPredictionStage(val bankBytes: Int)(implicit p: Parameters) extends 
                              io.f3_ras_update.valid && !io.f3_stall) && !io.f4_redirect
                                // TODO Have a mechanism to decrease the prevalence of misspeculated RAS updates.
                                // Perhaps the RAS belongs under the jurisdiction of the branch-checker.
-  when (btb.io.resp.valid) {
+  when (btb.io.resp.valid && (!io.f3_ras_update.valid || !io.f3_ras_update.bits.is_ret)) {
      btb.io.ras_update.bits.is_call     := BpredType.isCall(btb.io.resp.bits.bpd_type)
      btb.io.ras_update.bits.is_ret      := BpredType.isReturn(btb.io.resp.bits.bpd_type)
      btb.io.ras_update.bits.return_addr := io.f2_aligned_pc + (jmp_idx << (log2Ceil(coreInstBytes)).U) +
