@@ -891,6 +891,7 @@ class LoadStoreUnit(pl_width: Int)(implicit p: Parameters,
    val wb_forward_std_val = RegInit(false.B)
    val wb_forward_std_idx = Reg(UInt())
    val wb_uop             = RegNext(mem_ld_uop)
+   val wb_uop_alignment   = RegNext(mem_ld_addr(2,0))
    wb_uop.br_mask        := GetNewBrMask(io.brinfo, mem_ld_uop)
 
    val ldld_addr_conflict= WireInit(false.B)
@@ -930,7 +931,7 @@ class LoadStoreUnit(pl_width: Int)(implicit p: Parameters,
                         sdq_val(wb_forward_std_idx) &&
                         !(io.nack.valid && io.nack.cache_nack)
    }
-   io.forward_data := LoadDataGenerator(sdq_data(wb_forward_std_idx).asUInt, wb_uop.mem_size, wb_uop.mem_signed)
+   io.forward_data := LoadDataGenerator(sdq_data(wb_forward_std_idx).asUInt, wb_uop.mem_size, wb_uop.mem_signed, wb_uop_alignment)
    io.forward_uop  := wb_uop
 
    //------------------------
@@ -1441,13 +1442,14 @@ object GenByteMask
  */
 object LoadDataGenerator
 {
-   def apply(data: UInt, mem_size: UInt, mem_signed: Bool): UInt =
+   def apply(data: UInt, mem_size: UInt, mem_signed: Bool, alignment: UInt): UInt =
    {
      val sext  = mem_signed
      val word  = mem_size === 2.U
      val half  = mem_size === 1.U
      val byte_ = mem_size === 0.U
      val dword = mem_size === 3.U
+     val shifted_data = data >> (alignment << 3)
 
       val out = Mux (dword, data,
                 Mux (word , Cat(Fill(32, sext & data(31)), data(31, 0)),
