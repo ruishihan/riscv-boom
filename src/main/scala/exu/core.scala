@@ -31,6 +31,7 @@ package boom.exu
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.dontTouch
+import chisel3.experimental.annotate
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket.Instructions._
@@ -41,6 +42,18 @@ import boom.common._
 import boom.exu.FUConstants._
 import boom.system.BoomTilesKey
 import boom.util.{RobTypeToChars, BoolToChar, GetNewUopAndBrMask, Sext, WrapInc, BoomCoreStringPrefix}
+
+import firrtl.annotations.{SingleTargetAnnotation, ModuleTarget}
+
+case class ExtractionAnnotation(target: Module)
+    extends chisel3.experimental.ChiselAnnotation {
+  def toFirrtl = FirrtlExtractionAnnotation(target.toNamed.toTarget)
+}
+
+case class FirrtlExtractionAnnotation(target: ModuleTarget) extends
+    SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(rt: ModuleTarget) = this.copy(target = rt)
+}
 
 /**
  * IO bundle for the BOOM Core. Connects the external components such as
@@ -102,6 +115,9 @@ class BoomCore(implicit p: Parameters, edge: freechips.rocketchip.tilelink.TLEdg
 
   val decode_units     = for (w <- 0 until decodeWidth) yield { val d = Module(new DecodeUnit); d }
   val dec_brmask_logic = Module(new BranchMaskGenerationLogic(coreWidth))
+
+  annotate(ExtractionAnnotation(dec_brmask_logic))
+
   val rename_stage     = Module(new RenameStage(coreWidth, numIntPhysRegs, numIntRenameWakeupPorts, false))
   val fp_rename_stage  = if (usingFPU) Module(new RenameStage(coreWidth, numFpPhysRegs, numFpWakeupPorts, true))
                          else null
