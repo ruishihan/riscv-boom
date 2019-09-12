@@ -124,6 +124,8 @@ class CommitSignals(implicit p: Parameters) extends BoomBundle
   // Perform rollback of rename state (in conjuction with commit.uops).
   val rbk_valids = Vec(retireWidth, Bool())
   val rollback   = Bool()
+
+  val debug_wdata = Vec(retireWidth, UInt(xLen.W))
 }
 
 /**
@@ -294,6 +296,8 @@ class Rob(
     val rob_exception = Mem(numRobRows, Bool())
     val rob_fflags    = Mem(numRobRows, Bits(freechips.rocketchip.tile.FPConstants.FLAGS_SZ.W))
 
+    val rob_debug_wdata = Mem(numRobRows, UInt(xLen.W))
+
     //-----------------------------------------------
     // Dispatch: Add Entry to ROB
 
@@ -305,7 +309,6 @@ class Rob(
       rob_uop(rob_tail)       := io.enq_uops(w)
       rob_exception(rob_tail) := io.enq_uops(w).exception
       rob_fflags(rob_tail)    := 0.U
-      rob_uop(rob_tail).stat_brjmp_mispredicted := false.B
 
       assert (rob_val(rob_tail) === false.B, "[rob] overwriting a valid entry.")
       assert ((io.enq_uops(w).rob_idx >> log2Ceil(coreWidth)) === rob_tail)
@@ -323,11 +326,6 @@ class Rob(
       when (wb_resp.valid && MatchBank(GetBankIdx(wb_uop.rob_idx))) {
         rob_bsy(row_idx)      := false.B
         rob_unsafe(row_idx)   := false.B
-        if (O3PIPEVIEW_PRINTF) {
-          printf("%d; O3PipeView:complete:%d\n",
-            rob_uop(row_idx).debug_events.fetch_seq,
-            io.debug_tsc)
-        }
       }
       // TODO check that fflags aren't overwritten
       // TODO check that the wb is to a valid ROB entry, give it a time stamp
@@ -344,11 +342,6 @@ class Rob(
         rob_bsy(cidx)    := false.B
         assert (rob_val(cidx) === true.B, "[rob] store writing back to invalid entry.")
         assert (rob_bsy(cidx) === true.B, "[rob] store writing back to a not-busy entry.")
-
-        if (O3PIPEVIEW_PRINTF) {
-          printf("%d; O3PipeView:complete:%d\n",
-            rob_uop(GetRowIdx(clr_rob_idx.bits)).debug_events.fetch_seq, io.debug_tsc)
-        }
       }
     }
     for (clr <- io.lsu_clr_unsafe) {
@@ -358,13 +351,6 @@ class Rob(
       }
     }
 
-    when (io.brinfo.valid && MatchBank(GetBankIdx(io.brinfo.rob_idx))) {
-      rob_uop(GetRowIdx(io.brinfo.rob_idx)).stat_brjmp_mispredicted := io.brinfo.mispredict
-      rob_uop(GetRowIdx(io.brinfo.rob_idx)).stat_btb_mispredicted   := io.brinfo.btb_mispredict
-      rob_uop(GetRowIdx(io.brinfo.rob_idx)).stat_btb_made_pred      := io.brinfo.btb_made_pred
-      rob_uop(GetRowIdx(io.brinfo.rob_idx)).stat_bpd_mispredicted   := io.brinfo.bpd_mispredict
-      rob_uop(GetRowIdx(io.brinfo.rob_idx)).stat_bpd_made_pred      := io.brinfo.bpd_made_pred
-    }
 
     //-----------------------------------------------
     // Accruing fflags
@@ -489,7 +475,7 @@ class Rob(
     for (i <- 0 until numWakeupPorts) {
       val rob_idx = io.wb_resps(i).bits.uop.rob_idx
       when (io.debug_wb_valids(i) && MatchBank(GetBankIdx(rob_idx))) {
-        rob_uop(GetRowIdx(rob_idx)).debug_wdata := io.debug_wb_wdata(i)
+        rob_debug_wdata(GetRowIdx(rob_idx)) := io.debug_wb_wdata(i)
       }
       val temp_uop = rob_uop(GetRowIdx(rob_idx))
 
@@ -503,7 +489,7 @@ class Rob(
                temp_uop.ldst_val && temp_uop.pdst =/= io.wb_resps(i).bits.uop.pdst),
                "[rob] writeback (" + i + ") occurred to the wrong pdst.")
     }
-    io.commit.uops(w).debug_wdata := rob_uop(rob_head).debug_wdata
+    io.commit.debug_wdata(w) := rob_debug_wdata(rob_head)
 
     //--------------------------------------------------
     // Debug: handle passing out signals to printf in dpath
@@ -573,18 +559,16 @@ class Rob(
   val flush_uop = Mux(exception_thrown, com_xcpt_uop, Mux1H(flush_commit_mask, io.commit.uops))
 
   // delay a cycle for critical path considerations
-  io.flush.valid          := RegNext(flush_val, init=false.B)
-  io.flush.bits.ftq_idx   := RegNext(flush_uop.ftq_idx)
-  io.flush.bits.pc_lob    := RegNext(flush_uop.pc_lob)
-  io.flush.bits.edge_inst := RegNext(flush_uop.edge_inst)
-  io.flush.bits.is_rvc    := RegNext(flush_uop.is_rvc)
-  io.flush.bits.flush_typ := RegNext(FlushTypes.getType(flush_val,
-                                                        exception_thrown && !is_mini_exception,
-                                                        flush_commit && flush_uop.uopc === uopERET,
-                                                        refetch_inst))
+  io.flush.valid          := flush_val
+  io.flush.bits.ftq_idx   := flush_uop.ftq_idx
+  io.flush.bits.pc_lob    := flush_uop.pc_lob
+  io.flush.bits.edge_inst := flush_uop.edge_inst
+  io.flush.bits.is_rvc    := flush_uop.is_rvc
+  io.flush.bits.flush_typ := FlushTypes.getType(flush_val,
+                                                exception_thrown && !is_mini_exception,
+                                                flush_commit && flush_uop.uopc === uopERET,
+                                                refetch_inst)
 
-  val com_lsu_misspec = RegNext(exception_thrown && io.com_xcpt.bits.cause === MINI_EXCEPTION_MEM_ORDERING)
-  assert (!(com_lsu_misspec && !io.flush.valid), "[rob] pipeline flush not be exercised during a LSU misspeculation")
 
   // -----------------------------------------------
   // FP Exceptions

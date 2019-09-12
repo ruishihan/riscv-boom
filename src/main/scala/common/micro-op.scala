@@ -16,7 +16,6 @@ import chisel3.util._
 
 import freechips.rocketchip.config.Parameters
 
-import boom.bpu.BranchPredInfo
 import boom.exu.FUConstants
 
 /**
@@ -60,16 +59,6 @@ class MicroOp(implicit p: Parameters) extends BoomBundle
   val is_call          = Bool()                      //
   val br_mask          = UInt(maxBrCount.W)  // which branches are we being speculated under?
   val br_tag           = UInt(brTagSz.W)
-
-  val br_prediction    = new BranchPredInfo
-
-
-  // stat tracking of committed instructions
-  val stat_brjmp_mispredicted = Bool()                 // number of mispredicted branches/jmps
-  val stat_btb_made_pred      = Bool()                 // the BTB made a prediction (even if BPD overrided it)
-  val stat_btb_mispredicted   = Bool()                 //
-  val stat_bpd_made_pred      = Bool()                 // the BPD made the prediction
-  val stat_bpd_mispredicted   = Bool()                 // denominator: all committed branches
 
   // Index into FTQ to figure out our fetch PC.
   val ftq_idx          = UInt(log2Ceil(ftqSz).W)
@@ -137,13 +126,8 @@ class MicroOp(implicit p: Parameters) extends BoomBundle
   val bp_debug_if      = Bool()             // Breakpoint
   val bp_xcpt_if       = Bool()             // Breakpoint
 
-  // purely debug information
-  val debug_wdata      = UInt(xLen.W)
-  val debug_events     = new DebugStageEvents
-
-
   // Is it possible for this uop to misspeculate, preventing the commit of subsequent uops?
-  def unsafe           = uses_ldq || (uses_stq && !is_fence) || (is_br_or_jmp && !is_jal)
+  def unsafe           = uses_ldq || (uses_stq && !is_fence) || (is_br_or_jmp)
 
   def fu_code_is(_fu: UInt) = (fu_code & _fu) =/= 0.U
 }
@@ -174,14 +158,6 @@ class CtrlSignals extends Bundle()
   val is_std      = Bool()
 }
 
-/**
- * Debug stage events for Fetch stage
- */
-class DebugStageEvents extends Bundle()
-{
-  // Track the sequence number of each instruction fetched.
-  val fetch_seq        = UInt(32.W)
-}
 
 /**
  * Object to get type of control flow instruction
